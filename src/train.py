@@ -67,7 +67,6 @@ def evaluate_full(test_data, model, model_path, batch_size, item_cate_map, save=
     topN = args.topN
 
     item_embs = model.output_item()
-    print(item_embs)
 
     try:
         gpu_index = faiss.IndexFlatL2(args.embedding_dim)
@@ -85,10 +84,8 @@ def evaluate_full(test_data, model, model_path, batch_size, item_cate_map, save=
     nick_id, item_id, hist_item, hist_mask = prepare_data(src, tgt)
 
     user_embs = model.predict([np.array(hist_item), np.array(hist_mask)])
-    print(user_embs)
-    print(user_embs.shape)
 
-    # 多个兴趣表示[num_heads, embedding_dim]
+    # 单兴趣表示[batch, embedding_dim]
     if len(user_embs.shape) == 2:
         # I: itemList    D:distance
         # I, D = item_embs_index.get_nns_by_vector(user_embs, topN, include_distances=True)
@@ -262,9 +259,7 @@ def train(
 
             if iter % test_iter == 0:
                 metrics = evaluate_full(valid_data, model, best_model_path, batch_size, item_cate_map)
-                log_str = ''
-                if metrics != {}:
-                    log_str += ', ' + ', '.join(['valid ' + key + ': %.6f' % value for key, value in metrics.items()])
+                log_str = ', '.join(['valid ' + key + ': %.6f' % value for key, value in metrics.items()])
                 print(exp_name)
                 print(log_str)
 
