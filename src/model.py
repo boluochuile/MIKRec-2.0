@@ -16,13 +16,13 @@ class MSARec(tf.keras.Model):
         self.n_mid = n_mid
         self.neg_num = 10
         self.embedding_dim = embedding_dim
+        self.dropout_rate = dropout_rate
 
         self.item_embed = Embedding(
             input_dim=n_mid + 1,
             output_dim=self.embedding_dim,
             embeddings_initializer='random_uniform',
             embeddings_regularizer=tf.keras.regularizers.l2(0.01),
-            mask_zero=True,
             input_length=maxlen,
             name='item_embed'
         )
@@ -32,8 +32,10 @@ class MSARec(tf.keras.Model):
 
         self.dense = tf.keras.layers.Dense(self.embedding_dim, activation='relu')
 
+        self.emb_dropout = tf.keras.layers.Dropout(self.dropout_rate)
+
     def output_item(self):
-        self.item_embed.get_weights()
+        return self.item_embed.weights[0]
 
     def sampled_softmax_loss(self, labels, logits):
         labels = tf.cast(labels, tf.int64)
@@ -63,10 +65,16 @@ class MSARec(tf.keras.Model):
         return encoded_vec
 
     def call(self, inputs):
-        mid_his_batch_ph = inputs
-        seq_embed = self.item_embed(mid_his_batch_ph)
-        pos_encoding = tf.expand_dims(self.positional_encoding(mid_his_batch_ph), axis=0)
+        hist_item, hist_mask = inputs
+
+        self.mask = tf.expand_dims(hist_mask, -1)
+
+        seq_embed = self.item_embed(hist_item)
+        pos_encoding = tf.expand_dims(self.positional_encoding(hist_item), axis=0)
         seq_embed += pos_encoding
+        seq_embed = self.emb_dropout(seq_embed)
+
+        seq_embed *= self.mask
 
         # (b, sql, dim)
         att_outputs = seq_embed
@@ -79,6 +87,6 @@ class MSARec(tf.keras.Model):
         self.user_eb = self.dense(att_outputs)
 
         # outputs = tf.nn.sigmoid(tf.reduce_sum(tf.multiply(self.user_eb, item_embed), axis=1, keepdims=True))
-        outputs = self.user_eb
+        # outputs = self.user_eb
 
-        return outputs
+        return self.user_eb

@@ -14,6 +14,7 @@ from utils import *
 from model import *
 from tensorboardX import SummaryWriter
 
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 parser = argparse.ArgumentParser()
@@ -66,6 +67,7 @@ def evaluate_full(test_data, model, model_path, batch_size, item_cate_map, save=
     topN = args.topN
 
     item_embs = model.output_item()
+    print(item_embs)
 
     try:
         gpu_index = faiss.IndexFlatL2(args.embedding_dim)
@@ -82,7 +84,9 @@ def evaluate_full(test_data, model, model_path, batch_size, item_cate_map, save=
     src, tgt = test_data
     nick_id, item_id, hist_item, hist_mask = prepare_data(src, tgt)
 
-    user_embs =  model.predict(hist_item)
+    user_embs = model.predict([np.array(hist_item), np.array(hist_mask)])
+    print(user_embs)
+    print(user_embs.shape)
 
     # 多个兴趣表示[num_heads, embedding_dim]
     if len(user_embs.shape) == 2:
@@ -213,7 +217,6 @@ def train(
 
     writer = SummaryWriter('runs/' + exp_name)
 
-
     item_cate_map = load_item_cate(cate_file)
 
     # (user_id_list, item_id_list), (hist_item_list, hist_mask_list)
@@ -233,7 +236,7 @@ def train(
 
     callbacks = [
         # 如果`val_loss`在2个以上的周期内停止改进，则进行中断训练
-        tf.keras.callbacks.EarlyStopping(patience=args.patience, monitor='val_loss'),
+        # tf.keras.callbacks.EarlyStopping(patience=args.patience, monitor='val_loss'),
         # 将TensorBoard日志写入`./logs`目录
         tf.keras.callbacks.TensorBoard(log_dir='logs')
     ]
@@ -249,11 +252,11 @@ def train(
         for iter in range(max_iter):
             print('this is', iter, 'iter')
             model.fit(
-                hist_item,
-                item_id,
+                [np.array(hist_item), np.array(hist_mask)],
+                np.array(item_id),
                 epochs=1,
                 callbacks=callbacks,
-                validation_data=(hist_item2, item_id2),
+                # validation_data=(hist_item2, item_id2),
                 batch_size=batch_size,
             )
 
