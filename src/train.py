@@ -14,6 +14,8 @@ from utils import *
 from model import *
 from tensorboardX import SummaryWriter
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-p', type=str, default='train', help='train | test')
 parser.add_argument('--dataset', type=str, default='ml-1m', help='ml-1m | ml-10m | book | taobao')
@@ -239,17 +241,19 @@ def train(
     start_time = time.time()
     try:
         trials = 0
-
+        src, tgt = train_data
+        src2, tgt2 = valid_data
+        nick_id, item_id, hist_item, hist_mask = prepare_data(src, tgt)
+        nick_id2, item_id2, hist_item2, hist_mask2 = prepare_data(src2, tgt2)
         # train_data: userid, itemid, sql_num
         for iter in range(max_iter):
-            src, tgt = train_data
-            nick_id, item_id, hist_item, hist_mask  = prepare_data(src, tgt)
-
+            print('this is', iter, 'iter')
             model.fit(
                 hist_item,
                 item_id,
                 epochs=1,
                 callbacks=callbacks,
+                validation_data=(hist_item2, item_id2),
                 batch_size=batch_size,
             )
 
