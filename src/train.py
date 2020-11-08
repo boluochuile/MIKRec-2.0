@@ -6,12 +6,11 @@ import shutil
 import sys
 import time
 from collections import defaultdict
-# from annoy import AnnoyIndex
 
 import numpy as np
 import os
 import faiss
-from data_iterator import DataIterator
+from utils import *
 from model import *
 from tensorboardX import SummaryWriter
 
@@ -77,88 +76,89 @@ def evaluate_full(test_data, model, model_path, batch_size, item_cate_map, save=
     total_ndcg = 0.0
     total_hitrate = 0
     total_diversity = 0.0
-    for src, tgt in test_data:
-        nick_id, item_id, hist_item, hist_mask = prepare_data(src, tgt)
 
-        user_embs =  model.predict(hist_item)
+    src, tgt = train_data
+    nick_id, item_id, hist_item, hist_mask = prepare_data(src, tgt)
 
-        # 多个兴趣表示[num_heads, embedding_dim]
-        if len(user_embs.shape) == 2:
-            # I: itemList    D:distance
-            # I, D = item_embs_index.get_nns_by_vector(user_embs, topN, include_distances=True)
-            D, I = gpu_index.search(user_embs, topN)
-            for i, iid_list in enumerate(item_id):
-                recall = 0
-                dcg = 0.0
-                item_list = set(I[i])
-                for no, iid in enumerate(iid_list):
-                    if iid in item_list:
-                        recall += 1
-                        dcg += 1.0 / math.log(no+2, 2)
-                idcg = 0.0
-                for no in range(recall):
-                    idcg += 1.0 / math.log(no+2, 2)
-                total_recall += recall * 1.0 / len(iid_list)
-                if recall > 0:
-                    total_ndcg += dcg / idcg
-                    total_hitrate += 1
-                if not save:
-                    total_diversity += compute_diversity(I[i], item_cate_map)
-        else:
-            ni = user_embs.shape[1]
-            user_embs = np.reshape(user_embs, [-1, user_embs.shape[-1]])
-            # I, D = item_embs_index.get_nns_by_vector(user_embs, topN, include_distances=True)
-            D, I = gpu_index.search(user_embs, topN)
-            for i, iid_list in enumerate(item_id):
-                recall = 0
-                dcg = 0.0
-                item_list_set = set()
-                if coef is None:
-                    item_list = list(zip(np.reshape(I[i*ni:(i+1)*ni], -1), np.reshape(D[i*ni:(i+1)*ni], -1)))
-                    item_list.sort(key=lambda x:x[1], reverse=True)
-                    for j in range(len(item_list)):
-                        if item_list[j][0] not in item_list_set and item_list[j][0] != 0:
-                            item_list_set.add(item_list[j][0])
-                            if len(item_list_set) >= topN:
-                                break
-                else:
-                    origin_item_list = list(zip(np.reshape(I[i*ni:(i+1)*ni], -1), np.reshape(D[i*ni:(i+1)*ni], -1)))
-                    origin_item_list.sort(key=lambda x:x[1], reverse=True)
-                    item_list = []
-                    tmp_item_set = set()
-                    for (x, y) in origin_item_list:
-                        if x not in tmp_item_set and x in item_cate_map:
-                            item_list.append((x, y, item_cate_map[x]))
-                            tmp_item_set.add(x)
-                    cate_dict = defaultdict(int)
-                    for j in range(topN):
-                        max_index = 0
-                        max_score = item_list[0][1] - coef * cate_dict[item_list[0][2]]
-                        for k in range(1, len(item_list)):
-                            if item_list[k][1] - coef * cate_dict[item_list[k][2]] > max_score:
-                                max_index = k
-                                max_score = item_list[k][1] - coef * cate_dict[item_list[k][2]]
-                            elif item_list[k][1] < max_score:
-                                break
-                        item_list_set.add(item_list[max_index][0])
-                        cate_dict[item_list[max_index][2]] += 1
-                        item_list.pop(max_index)
+    user_embs =  model.predict(hist_item)
 
-                for no, iid in enumerate(iid_list):
-                    if iid in item_list_set:
-                        recall += 1
-                        dcg += 1.0 / math.log(no+2, 2)
-                idcg = 0.0
-                for no in range(recall):
-                    idcg += 1.0 / math.log(no+2, 2)
-                total_recall += recall * 1.0 / len(iid_list)
-                if recall > 0:
-                    total_ndcg += dcg / idcg
-                    total_hitrate += 1
-                if not save:
-                    total_diversity += compute_diversity(list(item_list_set), item_cate_map)
+    # 多个兴趣表示[num_heads, embedding_dim]
+    if len(user_embs.shape) == 2:
+        # I: itemList    D:distance
+        # I, D = item_embs_index.get_nns_by_vector(user_embs, topN, include_distances=True)
+        D, I = gpu_index.search(user_embs, topN)
+        for i, iid_list in enumerate(item_id):
+            recall = 0
+            dcg = 0.0
+            item_list = set(I[i])
+            for no, iid in enumerate(iid_list):
+                if iid in item_list:
+                    recall += 1
+                    dcg += 1.0 / math.log(no+2, 2)
+            idcg = 0.0
+            for no in range(recall):
+                idcg += 1.0 / math.log(no+2, 2)
+            total_recall += recall * 1.0 / len(iid_list)
+            if recall > 0:
+                total_ndcg += dcg / idcg
+                total_hitrate += 1
+            if not save:
+                total_diversity += compute_diversity(I[i], item_cate_map)
+    else:
+        ni = user_embs.shape[1]
+        user_embs = np.reshape(user_embs, [-1, user_embs.shape[-1]])
+        # I, D = item_embs_index.get_nns_by_vector(user_embs, topN, include_distances=True)
+        D, I = gpu_index.search(user_embs, topN)
+        for i, iid_list in enumerate(item_id):
+            recall = 0
+            dcg = 0.0
+            item_list_set = set()
+            if coef is None:
+                item_list = list(zip(np.reshape(I[i*ni:(i+1)*ni], -1), np.reshape(D[i*ni:(i+1)*ni], -1)))
+                item_list.sort(key=lambda x:x[1], reverse=True)
+                for j in range(len(item_list)):
+                    if item_list[j][0] not in item_list_set and item_list[j][0] != 0:
+                        item_list_set.add(item_list[j][0])
+                        if len(item_list_set) >= topN:
+                            break
+            else:
+                origin_item_list = list(zip(np.reshape(I[i*ni:(i+1)*ni], -1), np.reshape(D[i*ni:(i+1)*ni], -1)))
+                origin_item_list.sort(key=lambda x:x[1], reverse=True)
+                item_list = []
+                tmp_item_set = set()
+                for (x, y) in origin_item_list:
+                    if x not in tmp_item_set and x in item_cate_map:
+                        item_list.append((x, y, item_cate_map[x]))
+                        tmp_item_set.add(x)
+                cate_dict = defaultdict(int)
+                for j in range(topN):
+                    max_index = 0
+                    max_score = item_list[0][1] - coef * cate_dict[item_list[0][2]]
+                    for k in range(1, len(item_list)):
+                        if item_list[k][1] - coef * cate_dict[item_list[k][2]] > max_score:
+                            max_index = k
+                            max_score = item_list[k][1] - coef * cate_dict[item_list[k][2]]
+                        elif item_list[k][1] < max_score:
+                            break
+                    item_list_set.add(item_list[max_index][0])
+                    cate_dict[item_list[max_index][2]] += 1
+                    item_list.pop(max_index)
 
-        total += len(item_id)
+            for no, iid in enumerate(iid_list):
+                if iid in item_list_set:
+                    recall += 1
+                    dcg += 1.0 / math.log(no+2, 2)
+            idcg = 0.0
+            for no in range(recall):
+                idcg += 1.0 / math.log(no+2, 2)
+            total_recall += recall * 1.0 / len(iid_list)
+            if recall > 0:
+                total_ndcg += dcg / idcg
+                total_hitrate += 1
+            if not save:
+                total_diversity += compute_diversity(list(item_list_set), item_cate_map)
+
+    total += len(item_id)
 
     recall = total_recall / total
     ndcg = total_ndcg / total
@@ -210,39 +210,44 @@ def train(
     item_cate_map = load_item_cate(cate_file)
 
     # (user_id_list, item_id_list), (hist_item_list, hist_mask_list)
-    train_data = DataIterator(train_file, batch_size, maxlen, train_flag=0)
-    valid_data = DataIterator(valid_file, batch_size, maxlen, train_flag=1)
+    train_data = DataGenerate(train_file, batch_size, maxlen, train_flag=0).outData()
+    valid_data = DataGenerate(valid_file, batch_size, maxlen, train_flag=1).outData()
 
     model = MSARec(item_count, args.embedding_dim, args.hidden_size, batch_size, args.num_interest,
                    args.num_interest, maxlen=args.maxlen, dropout_rate=args.dropout_rate, num_blocks=2)
-    print(model.summary())
+    # print(model.summary())
     optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate, decay=0.1)
 
     model.compile(loss=model.sampled_softmax_loss,
-                  optimizer=optimizer, metrics=[tf.keras.metrics.MSE, tf.keras.metrics.AUC()])
-
+                  optimizer=optimizer, metrics=[])
 
     print('training begin')
     sys.stdout.flush()
 
+    callbacks = [
+        # 如果`val_loss`在2个以上的周期内停止改进，则进行中断训练
+        tf.keras.callbacks.EarlyStopping(patience=args.patience, monitor='val_loss'),
+        # 将TensorBoard日志写入`./logs`目录
+        tf.keras.callbacks.TensorBoard(log_dir='logs')
+    ]
+
     start_time = time.time()
-    iter = 0
     try:
         trials = 0
 
         # train_data: userid, itemid, sql_num
-        for src, tgt in train_data:
-            uid_batch_ph, uid_batch_ph, mid_batch_ph, mask  = prepare_data(src, tgt)
+        for iter in range(max_iter):
+            src, tgt = train_data
+            nick_id, item_id, hist_item, hist_mask  = prepare_data(src, tgt)
 
             model.fit(
-                mid_batch_ph,
-                uid_batch_ph,
+                hist_item,
+                item_id,
                 epochs=1,
-                # callbacks=[tensorboard, checkpoint],
+                callbacks=callbacks,
                 batch_size=batch_size,
             )
 
-            iter += 1
             if iter % test_iter == 0:
                 metrics = evaluate_full(valid_data, model, best_model_path, batch_size, item_cate_map)
                 log_str = ''
@@ -271,8 +276,6 @@ def train(
                 print("time interval: %.4f min" % ((test_time-start_time)/60.0))
                 sys.stdout.flush()
 
-            if iter >= max_iter * 1000:
-                    break
     except KeyboardInterrupt:
         print('-' * 89)
         print('Exiting from training early')
@@ -282,7 +285,7 @@ def train(
     metrics = evaluate_full(valid_data, model, best_model_path, batch_size, item_cate_map, save=False)
     print(', '.join(['valid ' + key + ': %.6f' % value for key, value in metrics.items()]))
 
-    test_data = DataIterator(test_file, batch_size, maxlen, train_flag=2)
+    test_data = DataGenerate(test_file, batch_size, maxlen, train_flag=2).outData()
     metrics = evaluate_full(test_data, model, best_model_path, batch_size, item_cate_map, save=False)
     print(', '.join(['test ' + key + ': %.6f' % value for key, value in metrics.items()]))
 
@@ -291,7 +294,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     SEED = args.random_seed
 
-    tf.set_random_seed(SEED)
+    tf.random.set_seed(SEED)
     np.random.seed(SEED)
     random.seed(SEED)
 
@@ -300,7 +303,8 @@ if __name__ == '__main__':
     test_name = 'test'
 
     if args.dataset == 'ml-1m':
-        path = '/content/MIKRec-2.0/data/ml-1m_data/'
+        # path = '/content/MIKRec-2.0/data/ml-1m_data/'
+        path = '../data/ml-1m_data/'
         item_count = 3417
         batch_size = args.batch_size
         maxlen = args.maxlen

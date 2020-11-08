@@ -35,50 +35,50 @@ class MSARec(tf.keras.Model):
     def output_item(self):
         self.item_embed.get_weights()
 
-    def save(self, sess, path):
+    def save(self, path):
         if not os.path.exists(path):
             os.makedirs(path)
         saver = tf.train.Saver()
-        saver.save(sess, path + 'model.ckpt')
+        saver.save(path + 'model.ckpt')
 
-    def restore(self, sess, path):
+    def restore(self, path):
         saver = tf.train.Saver()
-        saver.restore(sess, path + 'model.ckpt')
+        saver.restore(path + 'model.ckpt')
         print('model restored from %s' % path)
 
     def sampled_softmax_loss(self, labels, logits):
         labels = tf.cast(labels, tf.int64)
         labels = tf.reshape(labels, [-1, 1])
         logits = tf.cast(logits, tf.float32)
-        proj_w = self.item_embed.get_weights()
+        proj_w = self.item_embed.weights[0]
         proj_b = tf.constant(0., shape=(self.n_mid, ))
 
-        return tf.cast(
+        return tf.reduce_mean(
             tf.nn.sampled_softmax_loss(
                 proj_w,
                 proj_b,
                 labels,
                 logits,
                 num_sampled=10 * self.batch_size,
-                num_classes=self.n_mid),
-            tf.float32)
+                num_classes=self.n_mid
+            )
+        )
 
     def positional_encoding(self, seq_inputs):
-        encoded_vec = [pos / np.power(10000.0, 2 * i / self.d_model)
-                       for pos in range(seq_inputs.shape[-1]) for i in range(self.item_embed)]
+        encoded_vec = [pos / np.power(10000.0, 2 * i / self.embedding_dim)
+                       for pos in range(seq_inputs.shape[-1]) for i in range(self.embedding_dim)]
         encoded_vec[::2] = np.sin(encoded_vec[::2])
         encoded_vec[1::2] = np.cos(encoded_vec[1::2])
-        encoded_vec = tf.reshape(tf.convert_to_tensor(encoded_vec, dtype=tf.float32), shape=(-1, self.item_embed))
+        encoded_vec = tf.reshape(tf.convert_to_tensor(encoded_vec, dtype=tf.float32), shape=(-1, self.embedding_dim))
 
         return encoded_vec
 
     def call(self, inputs):
-        uid_batch_ph, mid_batch_ph, mid_his_batch_ph, mask = inputs
-
+        mid_his_batch_ph = inputs
         seq_embed = self.item_embed(mid_his_batch_ph)
-
         pos_encoding = tf.expand_dims(self.positional_encoding(mid_his_batch_ph), axis=0)
         seq_embed += pos_encoding
+
         # (b, sql, dim)
         att_outputs = seq_embed
         for block in self.attention_block:
@@ -87,8 +87,9 @@ class MSARec(tf.keras.Model):
         # (b, sql * dim)
         att_outputs = Flatten()(att_outputs)
 
-        self.user_eb = tf.keras.layers.Dense(att_outputs)
+        self.user_eb = self.dense(att_outputs)
 
+        # outputs = tf.nn.sigmoid(tf.reduce_sum(tf.multiply(self.user_eb, item_embed), axis=1, keepdims=True))
         outputs = self.user_eb
 
         return outputs
