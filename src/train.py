@@ -303,8 +303,8 @@ if __name__ == '__main__':
     test_name = 'test'
 
     if args.dataset == 'ml-1m':
-        # path = '/content/MIKRec-2.0/data/ml-1m_data/'
-        path = '../data/ml-1m_data/'
+        path = '/content/MIKRec-2.0/data/ml-1m_data/'
+        # path = '../data/ml-1m_data/'
         item_count = 3417
         batch_size = args.batch_size
         maxlen = args.maxlen
