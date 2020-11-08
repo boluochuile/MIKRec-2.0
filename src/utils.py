@@ -72,14 +72,14 @@ def prepare_data(src, target):
     hist_item, hist_mask = target
     return nick_id, item_id, hist_item, hist_mask
 
-train_file = '../data/ml-1m_data/ml-1m_train.txt'
-# (user_id_list, item_id_list), (hist_item_list, hist_mask_list)
-train_data = DataGenerate(train_file, 128, 20, train_flag=0).outData()
-# print('train_data: ', len(train_data))
-
-src, tgt = train_data
-data_iter = prepare_data(src, tgt)
-print(len(data_iter[0]))
-print(len(data_iter[1]))
-print(len(data_iter[2]))
-print(len(data_iter[3]))
+# train_file = '../data/ml-1m_data/ml-1m_train.txt'
+# # (user_id_list, item_id_list), (hist_item_list, hist_mask_list)
+# train_data = DataGenerate(train_file, 128, 20, train_flag=0).outData()
+# # print('train_data: ', len(train_data))
+#
+# src, tgt = train_data
+# data_iter = prepare_data(src, tgt)
+# print(len(data_iter[0]))
+# print(len(data_iter[1]))
+# print(len(data_iter[2]))
+# print(len(data_iter[3]))
