@@ -66,7 +66,8 @@ def compute_diversity(item_list, item_cate_map):
 def evaluate_full(test_data, model, model_path, batch_size, item_cate_map, save=True, coef=None):
     topN = args.topN
 
-    item_embs = model.output_item()
+    item_embs = model.output_item().numpy()
+    # print(item_embs)
 
     try:
         gpu_index = faiss.IndexFlatL2(args.embedding_dim)
