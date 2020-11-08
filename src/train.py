@@ -24,6 +24,7 @@ parser.add_argument('--random_seed', type=int, default=19)
 parser.add_argument('--embedding_dim', type=int, default=64)
 parser.add_argument('--hidden_size', type=int, default=64)
 parser.add_argument('--num_interest', type=int, default=4)
+parser.add_argument('--num_heads', type=int, default=4)
 parser.add_argument('--model_type', type=str, default='none', help='DNN | GRU4REC | ..')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='')
 parser.add_argument('--max_iter', type=int, default=1000, help='(k)')
@@ -177,7 +178,7 @@ def evaluate_full(test_data, model, model_path, batch_size, item_cate_map, save=
 def save(model, path):
     if not os.path.exists(path):
         os.makedirs(path)
-    model.save(path + 'model.h5')
+    model.save_weights(path + 'model_weight')
 
 def get_exp_name(dataset, model_type, batch_size, lr, maxlen, save=True):
     extr_name = input('Please input the experiment name: ')
@@ -222,7 +223,7 @@ def train(
     train_data = DataGenerate(train_file, batch_size, maxlen, train_flag=0).outData()
     valid_data = DataGenerate(valid_file, batch_size, maxlen, train_flag=1).outData()
 
-    model = MSARec(item_count, args.embedding_dim, args.hidden_size, batch_size, args.num_interest,
+    model = MSARec(item_count, args.embedding_dim, args.hidden_size, batch_size, args.num_heads,
                    args.num_interest, maxlen=args.maxlen, dropout_rate=args.dropout_rate, num_blocks=2)
     # print(model.summary())
     optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate, decay=0.1)
