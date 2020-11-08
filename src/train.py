@@ -27,7 +27,7 @@ parser.add_argument('--max_iter', type=int, default=1000, help='(k)')
 parser.add_argument('--patience', type=int, default=50)
 parser.add_argument('--coef', default=None)
 parser.add_argument('--topN', type=int, default=50)
-parser.add_argument('--test_iter', type=int, default=1000)
+parser.add_argument('--test_iter', type=int, default=5)
 parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--maxlen', type=int, default=50)
 parser.add_argument('--num_blocks', type=float, default=2)
@@ -77,7 +77,7 @@ def evaluate_full(test_data, model, model_path, batch_size, item_cate_map, save=
     total_hitrate = 0
     total_diversity = 0.0
 
-    src, tgt = train_data
+    src, tgt = test_data
     nick_id, item_id, hist_item, hist_mask = prepare_data(src, tgt)
 
     user_embs =  model.predict(hist_item)
@@ -168,6 +168,11 @@ def evaluate_full(test_data, model, model_path, batch_size, item_cate_map, save=
     if save:
         return {'recall': recall, 'ndcg': ndcg, 'hitrate': hitrate}
     return {'recall': recall, 'ndcg': ndcg, 'hitrate': hitrate, 'diversity': diversity}
+
+def save(model, path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+    model.save(path + 'model.h5')
 
 def get_exp_name(dataset, model_type, batch_size, lr, maxlen, save=True):
     extr_name = input('Please input the experiment name: ')
@@ -265,7 +270,7 @@ def train(
                     global best_metric
                     if recall > best_metric:
                         best_metric = recall
-                        model.save(best_model_path)
+                        save(model, best_model_path)
                         trials = 0
                     else:
                         trials += 1
@@ -280,7 +285,7 @@ def train(
         print('-' * 89)
         print('Exiting from training early')
 
-    model.restore(best_model_path)
+    save(model, best_model_path)
 
     metrics = evaluate_full(valid_data, model, best_model_path, batch_size, item_cate_map, save=False)
     print(', '.join(['valid ' + key + ': %.6f' % value for key, value in metrics.items()]))

@@ -35,17 +35,6 @@ class MSARec(tf.keras.Model):
     def output_item(self):
         self.item_embed.get_weights()
 
-    def save(self, path):
-        if not os.path.exists(path):
-            os.makedirs(path)
-        saver = tf.train.Saver()
-        saver.save(path + 'model.ckpt')
-
-    def restore(self, path):
-        saver = tf.train.Saver()
-        saver.restore(path + 'model.ckpt')
-        print('model restored from %s' % path)
-
     def sampled_softmax_loss(self, labels, logits):
         labels = tf.cast(labels, tf.int64)
         labels = tf.reshape(labels, [-1, 1])
