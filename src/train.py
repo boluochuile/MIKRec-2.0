@@ -72,6 +72,7 @@ def evaluate_full(test_data, model, model_path, batch_size, item_cate_map, save=
         gpu_index = faiss.IndexFlatL2(args.embedding_dim)
         gpu_index.add(item_embs)
     except Exception as e:
+        print('异常')
         return {}
 
     total = 0
